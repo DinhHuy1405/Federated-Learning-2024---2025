@@ -1,0 +1,2 @@
+python3 generate_data.py --dataset mnist --n_clients 10 --iid True --frac 0.1 --save_dir ./data --seed 42
+python3 train.py --experiment my_experiment --n_rounds 100 --local_steps 5 --local_optimizer SGD --local_lr 0.01 --server_optimizer Adam --server_lr 0.001 --bz 32 --device cuda --log_freq 10 --verbose True --logs_dir ./logs --seed 42 --aggregator_type FedAvg 
