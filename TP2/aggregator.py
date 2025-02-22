@@ -204,8 +204,8 @@ class Aggregator(ABC):
         #  1) Use the self.rng.sample method from Python's random.Random()
         #  2) Sample self.n_clients_per_round unique ids from a population that ranges from 0 to self.n_clients - 1
         #  3) Assign the list of sampled ids to self.sampled_clients_ids
-        self.sampled_clients_ids = self.rng.sample(range(self.n_clients), self.n_clients_per_round)
-        self.sampled_clients = [self.clients[id_] for id_ in self.sampled_clients_ids]
+        # self.sampled_clients_ids = self.rng.sample(range(self.n_clients), self.n_clients_per_round)
+        # self.sampled_clients = [self.clients[idx] for idx in self.sampled_clients_ids]
 
         # TODO: Exercise 5.2: sampling without replacement
         #  1) The flag 'self.sample_with_replacement' determines if sampling is with or without replacement
@@ -213,18 +213,18 @@ class Aggregator(ABC):
         #     Specify population, 'weights=self.clients_weights', and 'k=self.n_clients_per_round'
         #  3) If 'False', sample without replacement, as in Exercise 2.1
         # Sample clients based on the sampling strategy
-        # if self.sample_with_replacement:
-        #     # Sample with replacement using weights
-        #     self.sampled_clients_ids = self.rng.choices(
-        #         population=range(self.n_clients),
-        #         weights=self.clients_weights,
-        #         k=self.n_clients_per_round
-        #     )
-        # else:
-        #     # Sample without replacement
-        #     self.sampled_clients_ids = self.rng.sample(range(self.n_clients), self.n_clients_per_round)
+        if self.sample_with_replacement:
+            # Sample with replacement using weights
+            self.sampled_clients_ids = self.rng.choices(
+                population=range(self.n_clients),
+                weights=self.clients_weights,
+                k=self.n_clients_per_round
+            )
+        else:
+            # Sample without replacement
+            self.sampled_clients_ids = self.rng.sample(range(self.n_clients), self.n_clients_per_round)
 
-        # self.sampled_clients = [self.clients[id_] for id_ in self.sampled_clients_ids]
+        self.sampled_clients = [self.clients[id_] for id_ in self.sampled_clients_ids]
 
 
 class NoCommunicationAggregator(Aggregator):
@@ -246,25 +246,32 @@ class CentralizedAggregator(Aggregator):
 
     """
     def mix(self):
-        self.sample_clients()  # Call to sample clients
+            # Lấy mẫu các client
+            self.sample_clients()
 
-        for client_id in self.sampled_clients_ids:  # Use only sampled clients
-            for _ in range(self.local_steps):
-                self.clients[client_id].step()
+            # Huấn luyện cục bộ chỉ với các client được lấy mẫu
+            for client_id in self.sampled_clients_ids:
+                for _ in range(self.local_steps):
+                    self.clients[client_id].step()
 
-        learners = [self.clients[client_id].learner for client_id in self.sampled_clients_ids]
+            # Thu thập các learner từ các client đã được chọn
+            learners = [self.clients[client_id].learner for client_id in self.sampled_clients_ids]
+            clients_weights = torch.tensor(
+                [self.clients_weights[client_id] for client_id in self.sampled_clients_ids],
+                dtype=torch.float32
+            )
 
-        clients_weights = torch.tensor([self.clients_weights[client_id] for client_id in self.sampled_clients_ids], dtype=torch.float32)
+            # Cập nhật mô hình toàn cục dựa trên các mô hình cục bộ đã huấn luyện
+            average_models(
+                learners=learners,
+                target_learner=self.global_learner,
+                weights=clients_weights,
+                average_params=True,
+                average_gradients=False
+            )
 
-        average_models(
-            learners=learners,
-            target_learner=self.global_learner,
-            weights=clients_weights,
-            average_params=True,
-            average_gradients=False
-        )
+            # Đồng bộ mô hình toàn cục tới tất cả các client
+            for client in self.clients:
+                copy_model(client.learner.model, self.global_learner.model)
 
-        for client in self.clients:
-            copy_model(client.learner.model, self.global_learner.model)
-
-        self.c_round += 1
+            self.c_round += 1

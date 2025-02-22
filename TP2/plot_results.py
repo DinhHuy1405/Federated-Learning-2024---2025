@@ -58,12 +58,13 @@ def main():
     plt.close()
     
     # Print final accuracies
-    print("\nFinal Test Accuracies:")
+    # Thực hiện in ra định dạng CSV
+    print("local_steps,final_test_accuracy")
     for local_steps in args.local_steps:
         log_dir = f"logs/mnist_local_steps_{local_steps}/global"
         steps, accuracies = load_tensorboard_data(log_dir)
         if accuracies is not None:
-            print(f"Local Steps = {local_steps}: {accuracies[-1]:.4f}")
+            print(f"{local_steps},{accuracies[-1]:.4f}")
 
 if __name__ == "__main__":
     main() 
